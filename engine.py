@@ -1,5 +1,7 @@
 import tdl
 
+import input_handlers
+
 
 def main():
     screen_width = 80
@@ -13,13 +15,16 @@ def main():
     root_console = tdl.init(width=screen_width,
                             height=screen_height,
                             title='Roguelike Tutorial Revised')
+    con = tdl.Console(width=screen_width, height=screen_height)
 
     while not tdl.event.is_window_closed():
-        root_console.draw_char(player_x, player_y, '@', bg=None, fg=(255, 255, 255))
-
+        con.draw_char(player_x, player_y, '@', bg=None, fg=(255, 255, 255))
+        root_console.blit(con, x=0, y=0,
+                          width=screen_width, height=screen_height,
+                          srcX=0, srcY=0)
         tdl.flush()
 
-        root_console.draw_char(player_x, player_y, ' ', bg=None)
+        con.draw_char(player_x, player_y, ' ', bg=None)
 
         for event in tdl.event.get():
             if event.type == 'KEYDOWN':
@@ -31,8 +36,22 @@ def main():
         if not user_input:
             continue
 
-        if user_input.key == 'ESCAPE':
+        action = input_handlers.handle_keys(user_input)
+
+        move = action.get('move')
+        exit = action.get('exit')
+        fullscreen = action.get('fullscreen')
+
+        if move:
+            dx, dy = move
+            player_x += dx
+            player_y += dy
+
+        if exit:
             return True
+
+        if fullscreen:
+            tdl.set_fullscreen(not tdl.get_fullscreen())
 
 
 if __name__ == '__main__':
