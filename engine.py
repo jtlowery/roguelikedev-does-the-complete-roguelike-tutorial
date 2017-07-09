@@ -1,14 +1,31 @@
 import tdl
 
 import input_handlers
+import entity
+import render_functions
+import map_utils
 
 
 def main():
     screen_width = 80
     screen_height = 50
+    map_width = 80
+    map_height = 45
 
-    player_x = int(screen_width / 2)
-    player_y = int(screen_height / 2)
+    colors = {
+        'dark_wall': (0, 0, 100),
+        'dark_ground': (50, 50, 150)
+    }
+
+    player = entity.Entity(x=int(screen_width / 2),
+                           y=int(screen_height / 2),
+                           char='@',
+                           color=(255, 255, 255))
+    npc = entity.Entity(x=int(screen_width / 2),
+                        y=int(screen_height / 2 - 5),
+                        char='@',
+                        color=(255, 255, 0))
+    entities = [npc, player]
 
     tdl.set_font('consolas12x12_gs_tc.png', greyscale=True, altLayout=True)
 
@@ -17,14 +34,18 @@ def main():
                             title='Roguelike Tutorial Revised')
     con = tdl.Console(width=screen_width, height=screen_height)
 
+    game_map = tdl.map.Map(width=map_width, height=map_height)
+    map_utils.make_map(game_map=game_map)
+
     while not tdl.event.is_window_closed():
-        con.draw_char(player_x, player_y, '@', bg=None, fg=(255, 255, 255))
-        root_console.blit(con, x=0, y=0,
-                          width=screen_width, height=screen_height,
-                          srcX=0, srcY=0)
+        render_functions.render_all(con, entities,
+                                    game_map, root_console,
+                                    screen_width, screen_height,
+                                    colors)
+
         tdl.flush()
 
-        con.draw_char(player_x, player_y, ' ', bg=None)
+        render_functions.clear_all(con, entities)
 
         for event in tdl.event.get():
             if event.type == 'KEYDOWN':
@@ -44,8 +65,8 @@ def main():
 
         if move:
             dx, dy = move
-            player_x += dx
-            player_y += dy
+            if game_map.walkable[player.x + dx, player.y + dy]:
+                player.move(dx, dy)
 
         if exit:
             return True
