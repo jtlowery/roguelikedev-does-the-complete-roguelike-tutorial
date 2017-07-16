@@ -16,9 +16,15 @@ def main():
     room_min_size = 6
     max_rooms = 30
 
+    fov_algorithm = 'BASIC'
+    fov_light_walls = True
+    fov_radius = 10
+
     colors = {
         'dark_wall': (0, 0, 100),
-        'dark_ground': (50, 50, 150)
+        'dark_ground': (50, 50, 150),
+        'light_wall': (130, 110, 50),
+        'light_ground': (200, 180, 50)
     }
 
     player = entity.Entity(x=int(screen_width / 2),
@@ -38,7 +44,7 @@ def main():
                             title='Roguelike Tutorial Revised')
     con = tdl.Console(width=screen_width, height=screen_height)
 
-    game_map = tdl.map.Map(width=map_width, height=map_height)
+    game_map = map_utils.GameMap(width=map_width, height=map_height)
     map_utils.make_map(game_map=game_map,
                        max_rooms=max_rooms,
                        room_min_size=room_min_size,
@@ -47,15 +53,30 @@ def main():
                        map_height=map_height,
                        player=player)
 
+    fov_recompute = True
+
     while not tdl.event.is_window_closed():
-        render_functions.render_all(con, entities,
-                                    game_map, root_console,
-                                    screen_width, screen_height,
+        if fov_recompute:
+            game_map.compute_fov(x=player.x,
+                                 y=player.y,
+                                 fov=fov_algorithm,
+                                 radius=fov_radius,
+                                 light_walls=fov_light_walls)
+
+        render_functions.render_all(con,
+                                    entities,
+                                    game_map,
+                                    fov_recompute,
+                                    root_console,
+                                    screen_width,
+                                    screen_height,
                                     colors)
 
         tdl.flush()
 
         render_functions.clear_all(con, entities)
+
+        fov_recompute = False
 
         for event in tdl.event.get():
             if event.type == 'KEYDOWN':
@@ -77,6 +98,8 @@ def main():
             dx, dy = move
             if game_map.walkable[player.x + dx, player.y + dy]:
                 player.move(dx, dy)
+
+                fov_recompute = True
 
         if exit:
             return True
