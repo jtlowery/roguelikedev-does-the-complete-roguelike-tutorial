@@ -1,17 +1,29 @@
 import tdl
 
 import input_handlers
+from components.fighter import Fighter
 from entity import Entity, get_blocking_entities_at_location
+from death_functions import kill_monster, kill_player
 from game_states import GameStates
-import render_functions
+from render_functions import clear_all, render_all, RenderOrder
+from game_messages import MessageLog
 import map_utils
 
 
 def main():
     screen_width = 80
     screen_height = 50
+
+    bar_width = 20
+    panel_height = 7
+    panel_y = screen_height - panel_height
+
+    message_x = bar_width + 2
+    message_width = screen_width - bar_width - 2
+    message_height = panel_height - 1
+
     map_width = 80
-    map_height = 45
+    map_height = 43
 
     room_max_size = 10
     room_min_size = 6
@@ -29,10 +41,19 @@ def main():
         'light_wall': (130, 110, 50),
         'light_ground': (200, 180, 50),
         'desaturated_green': (63, 127, 63),
-        'darker_green': (0, 127, 0)
+        'darker_green': (0, 127, 0),
+        'dark_red': (191, 0, 0),
+        'white': (255, 255, 255),
+        'black': (0, 0, 0),
+        'red': (255, 0, 0),
+        'orange': (255, 127, 0),
+        'light_red': (255, 114, 114),
+        'darker_red': (127, 0, 0)
     }
 
-    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True)
+    fighter_component = Fighter(hp=30, defense=2, power=5)
+    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True,
+                    render_order=RenderOrder.ACTOR, fighter=fighter_component)
     entities = [player]
 
     tdl.set_font('consolas12x12_gs_tc.png', greyscale=True, altLayout=True)
@@ -41,6 +62,7 @@ def main():
                             height=screen_height,
                             title='Roguelike Tutorial Revised')
     con = tdl.Console(width=screen_width, height=screen_height)
+    panel = tdl.Console(width=screen_width, height=panel_height)
 
     game_map = map_utils.GameMap(width=map_width, height=map_height)
     map_utils.make_map(game_map=game_map,
@@ -56,6 +78,10 @@ def main():
 
     fov_recompute = True
 
+    message_log = MessageLog(message_x, message_width, message_height)
+
+    mouse_coordinates = (0, 0)
+
     game_state = GameStates.PLAYERS_TURN
 
     while not tdl.event.is_window_closed():
@@ -66,18 +92,13 @@ def main():
                                  radius=fov_radius,
                                  light_walls=fov_light_walls)
 
-        render_functions.render_all(con,
-                                    entities,
-                                    game_map,
-                                    fov_recompute,
-                                    root_console,
-                                    screen_width,
-                                    screen_height,
-                                    colors)
+        render_all(con, panel, entities, player, game_map, fov_recompute,
+                   root_console, message_log, screen_width, screen_height,
+                   bar_width, panel_height, panel_y, mouse_coordinates, colors)
 
         tdl.flush()
 
-        render_functions.clear_all(con, entities)
+        clear_all(con, entities)
 
         fov_recompute = False
 
@@ -85,6 +106,8 @@ def main():
             if event.type == 'KEYDOWN':
                 user_input = event
                 break
+            elif event.type == 'MOUSEMOTION':
+                mouse_coordinates = event.cell
         else:
             user_input = None
 
@@ -97,6 +120,8 @@ def main():
         exit = action.get('exit')
         fullscreen = action.get('fullscreen')
 
+        player_turn_results = []
+
         if move and game_state == GameStates.PLAYERS_TURN:
             dx, dy = move
             destination_x = player.x + dx
@@ -107,8 +132,8 @@ def main():
                                                            destination_x,
                                                            destination_y)
                 if target:
-                    print('You kick the {} in the shins, '
-                          'much to its annoyance!'.format(target.name))
+                    attack_results = player.fighter.attack(target)
+                    player_turn_results.extend(attack_results)
                 else:
                     player.move(dx, dy)
                     fov_recompute = True
@@ -121,13 +146,45 @@ def main():
         if fullscreen:
             tdl.set_fullscreen(not tdl.get_fullscreen())
 
+        for player_turn_result in player_turn_results:
+            message = player_turn_result.get('message')
+            dead_entity = player_turn_result.get('dead')
+
+            if message:
+                message_log.add_message(message)
+
+            if dead_entity:
+                if dead_entity == player:
+                    message, game_state = kill_player(dead_entity, colors)
+                else:
+                    message = kill_monster(dead_entity, colors)
+                message_log.add_message(message)
+
         if game_state == GameStates.ENEMY_TURN:
             for entity in entities:
-                if entity != player:
-                    print('The {} ponders the meaning of '
-                          'its existence.'.format(entity.name))
+                if entity.ai:
+                    enemy_turn_results = entity.ai.take_turn(player, game_map, entities)
 
-            game_state = GameStates.PLAYERS_TURN
+                    for enemy_turn_result in enemy_turn_results:
+                        message = enemy_turn_result.get('message')
+                        dead_entity = enemy_turn_result.get('dead')
+
+                        if message:
+                            message_log.add_message(message)
+
+                        if dead_entity:
+                            if dead_entity == player:
+                                message, game_state = kill_player(dead_entity, colors)
+                            else:
+                                message = kill_monster(dead_entity, colors)
+                            message_log.add_message(message)
+                            if game_state == GameStates.PLAYER_DEAD:
+                                break
+
+                if game_state == GameStates.PLAYER_DEAD:
+                    break
+            else:
+                game_state = GameStates.PLAYERS_TURN
 
 
 if __name__ == '__main__':
