@@ -2,8 +2,10 @@ from random import randint
 from tdl.map import Map
 
 from entity import Entity
+from item_functions import heal
 from components.ai import BasicMonster
 from components.fighter import Fighter
+from components.item import Item
 from render_functions import RenderOrder
 
 
@@ -53,9 +55,10 @@ def create_v_tunnel(game_map, y1, y2, x):
         game_map.transparent[x, y] = True
 
 
-def place_entities(room, entities, max_monsters_per_room, colors):
+def place_entities(room, entities, max_monsters_per_room, max_items_per_rooms, colors):
     # get a random number of monsters
     number_of_monsters = randint(0, max_monsters_per_room)
+    number_of_items = randint(0, max_items_per_rooms)
 
     for i in range(number_of_monsters):
         # choose a random location in the room
@@ -78,6 +81,17 @@ def place_entities(room, entities, max_monsters_per_room, colors):
                                  fighter=fighter_component, ai=ai_component)
             entities.append(monster)
 
+    for i in range(number_of_items):
+        x = randint(room.x1 + 1, room.x2 - 1)
+        y = randint(room.y1 + 1, room.y2 - 1)
+
+        if not any([entity for entity in entities if entity.x == x and entity.y == y]):
+            item_component = Item(use_function=heal, amount=4)
+            item = Entity(x, y, '!', colors.get('violet'), 'Healing Potion', render_order=RenderOrder.ITEM,
+                          item=item_component)
+
+            entities.append(item)
+
 
 def make_map(game_map,
              max_rooms,
@@ -88,6 +102,7 @@ def make_map(game_map,
              player,
              entities,
              max_monsters_per_room,
+             max_items_per_room,
              colors):
 
     rooms = []
@@ -150,7 +165,7 @@ def make_map(game_map,
                                     x2=new_x,
                                     y=new_y)
 
-            place_entities(new_room, entities, max_monsters_per_room, colors)
+            place_entities(new_room, entities, max_monsters_per_room, max_items_per_room, colors)
 
             # finally, append the new room to the list
             rooms.append(new_room)
